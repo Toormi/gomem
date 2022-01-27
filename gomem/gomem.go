@@ -205,7 +205,7 @@ func TestMemDb() {
 	//	}
 	//}
 	timeNow := time.Now()
-	orders := []*order.Order{
+	orders := []*order2.Order{
 		order2.NewOrder(6, 1100752, "10", "10", timeNow, "ETH"),
 		order2.NewOrder(10, 1100752, "10", "10", timeNow, "EOS"),
 		order2.NewOrder(8, 1100752, "10", "10", timeNow, "EOS"),

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
+	json "github.com/json-iterator/go"
 	"github.com/shopspring/decimal"
 	"gomem/order"
+	"gomem/snapshot"
 	"math/rand"
 	"sync"
 	"time"
@@ -33,7 +35,7 @@ func init() {
 
 //var num = 50000
 //
-var num = 5000000
+var num = 20000000
 
 // Memory orders map[cid][market_uuid][id]order
 type Memory struct {
@@ -437,9 +439,11 @@ func (m *Memory) Snapshot() *Snapshot {
 	//go func() {
 	//	defer wg.Done()
 	now := time.Now().UnixNano() / 1e6
+	m.mtx.Lock()
 	for _, o := range m.OrderIDMap {
 		snap.CloseOrders = append(snap.CloseOrders, o)
 	}
+	m.mtx.Unlock()
 	now2 := time.Now().UnixNano() / 1e6
 	fmt.Println("close order copy ", now2-now)
 	//}()
@@ -477,15 +481,15 @@ func TestMap() {
 	fmt.Println("close order len", len(snap.CloseOrders))
 	fmt.Println("opening order len", len(snap.OpeningOrders))
 
-	//now5 := time.Now().UnixNano() / 1e6
-	//data, err := json.Marshal(snap)
-	//if err != nil {
-	//	panic(err)
-	//	return
-	//}
-	//snapshot.BackUp(1, data)
-	//now6 := time.Now().UnixNano() / 1e6
-	//fmt.Println("save to file:", now6-now5)
+	now5 := time.Now().UnixNano() / 1e6
+	data, err := json.Marshal(snap)
+	if err != nil {
+		panic(err)
+		return
+	}
+	snapshot.BackUp(1, data)
+	now6 := time.Now().UnixNano() / 1e6
+	fmt.Println("save to file:", now6-now5)
 }
 
 func Insert(db *Memory) {
