@@ -441,7 +441,7 @@ func (m *Memory) Snapshot() *Snapshot {
 		snap.CloseOrders = append(snap.CloseOrders, o)
 	}
 	now2 := time.Now().UnixNano() / 1e6
-	fmt.Println("close order deep copy ", now2-now)
+	fmt.Println("close order copy ", now2-now)
 	//}()
 
 	//go func() {
@@ -486,7 +486,6 @@ func TestMap() {
 	//snapshot.BackUp(1, data)
 	//now6 := time.Now().UnixNano() / 1e6
 	//fmt.Println("save to file:", now6-now5)
-	time.Sleep(time.Minute * 10)
 }
 
 func Insert(db *Memory) {
