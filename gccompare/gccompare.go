@@ -9,6 +9,7 @@ import (
 	"gomem/gomem"
 	_map "gomem/map"
 	"gomem/order"
+	orderpb "gomem/protopb/order"
 	"math/rand"
 	"runtime"
 	"runtime/debug"
@@ -18,7 +19,7 @@ import (
 var (
 	cids        []uint64
 	marketUUIDs []string
-	customerNum = 5000
+	customerNum = 50000
 	marketNum   = 300
 )
 
@@ -46,7 +47,7 @@ func gcPause() time.Duration {
 }
 
 const (
-	entries = 500000
+	entries = 20000000
 	repeat  = 50
 )
 
@@ -58,22 +59,22 @@ func GcCompare() {
 	fmt.Println("GC pause for startup: ", gcPause())
 
 	stdmapCache()
-	buntdbCache()
-	gomemdbCache()
+	//buntdbCache()
+	//gomemdbCache()
 
 	fmt.Println("GC pause for warmup: ", gcPause())
-
-	for i := 0; i < repeat; i++ {
-		gomemdbCache()
-	}
-	fmt.Println("GC pause for memdbcache: ", gcPause())
-	for i := 0; i < repeat; i++ {
-		buntdbCache()
-	}
-	fmt.Println("GC pause for buntdbcache: ", gcPause())
-	for i := 0; i < repeat; i++ {
-		stdmapCache()
-	}
+	//
+	//for i := 0; i < repeat; i++ {
+	//	gomemdbCache()
+	//}
+	//fmt.Println("GC pause for memdbcache: ", gcPause())
+	//for i := 0; i < repeat; i++ {
+	//	buntdbCache()
+	//}
+	//fmt.Println("GC pause for buntdbcache: ", gcPause())
+	//for i := 0; i < repeat; i++ {
+	stdmapCache()
+	//}
 	fmt.Println("GC pause for map: ", gcPause())
 }
 
@@ -122,8 +123,8 @@ func stdmapCache() {
 	}
 }
 
-func generateKeyAndValue(id uint64, customerID uint64, price, amount string, now time.Time, marketUUID string) (string, *order.Order) {
-	return key(id), order.NewOrder(id, customerID, price, amount, now, marketUUID)
+func generateKeyAndValue(id uint64, customerID uint64, price, amount string, now time.Time, marketUUID string) (string, *orderpb.Order) {
+	return key(id), order.NewPbOrder(id, customerID, price, amount, now, marketUUID)
 }
 
 func key(id uint64) string {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"gomem/gccompare"
+	_map "gomem/map"
 	"os"
 	"runtime/pprof"
 )
@@ -19,6 +19,6 @@ func main() {
 	//gomem.TestMemDb()
 	//memory.TestMemory()
 
-	//_map.TestMap()
-	gccompare.GcCompare()
+	_map.TestMap()
+	//gccompare.GcCompare()
 }

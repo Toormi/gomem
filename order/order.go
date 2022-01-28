@@ -5,6 +5,8 @@ import (
 	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	orderpb "gomem/protopb/order"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )
 
@@ -390,4 +392,7 @@ type Order struct {
 func NewOrder(id, customerID uint64, price, amount string, now time.Time, marketUUID string) *Order {
 	p, _ := decimal.NewFromString(price)
 	return &Order{ID: id, CustomerID: customerID, MarketUUID: marketUUID, Price: p, Amount: p, Side: Side(id % 2), State: StatePending, Type: TypeLimit, IOC: false, FilledAmount: decimal.Zero, AvgDealPrice: decimal.Zero, InsertedAt: now, UpdatedAt: now}
+}
+func NewPbOrder(id, customerID uint64, price, amount string, now time.Time, marketUUID string) *orderpb.Order {
+	return &orderpb.Order{Id: id, CustomerId: customerID, MarketUuid: marketUUID, Price: price, Amount: amount, Side: orderpb.Order_Side(id % 2), State: orderpb.Order_State(StatePending), Type: orderpb.Order_Type(TypeLimit), Ioc: false, FilledAmount: "0", AvgDealPrice: "0", InsertedAt: timestamppb.New(now), UpdatedAt: timestamppb.New(now)}
 }
