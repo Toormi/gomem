@@ -121,6 +121,10 @@ func (m *OrderMemory) ListOrder() []*order.Order {
 func (m *OrderMemory) DeleteOrder(id uint64) {
 	m.mtx.Lock()
 	delete(m.Orders, id)
+	if len(m.Orders) <= 0 {
+		// 将旧map释放，确保gc能回收
+		m.Orders = make(map[uint64]*order.Order)
+	}
 	m.mtx.Unlock()
 }
 
