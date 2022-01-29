@@ -14,6 +14,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/tidwall/buntdb v1.2.9
 	github.com/urfave/cli v1.22.5
+	go.uber.org/automaxprocs v1.4.0 // indirect
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1
 )

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	_ "go.uber.org/automaxprocs"
 	"gomem/gccompare"
 	_map "gomem/map"
 	"os"
