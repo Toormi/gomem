@@ -5,6 +5,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
+	json "github.com/json-iterator/go"
 	"github.com/shopspring/decimal"
 	order2 "gomem/order"
 	"gomem/protopb/order"
@@ -477,7 +478,7 @@ func TestMap(n int) {
 	//var clientIDs []string
 	//clientID := uuid.New().String()
 	Insert(db)
-	//time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 10)
 	fmt.Println("start to deep copy ")
 	now3 := time.Now().UnixNano() / 1e6
 	snap := db.Snapshot()
@@ -487,7 +488,11 @@ func TestMap(n int) {
 	//fmt.Println("opening order len", len(snap.OpeningOrders))
 
 	for i := 0; i < 5; i++ {
-		SaveToFile(snap)
+		ProtoSaveToFile(snap)
+	}
+
+	for i := 0; i < 5; i++ {
+		JsonSaveToFile(snap)
 	}
 }
 
@@ -519,7 +524,7 @@ func Insert(db *Memory) {
 	fmt.Println("insert into eslap ", now2-now)
 }
 
-func SaveToFile(snap *snapshotpb.Snapshot) {
+func ProtoSaveToFile(snap *snapshotpb.Snapshot) {
 	now5 := time.Now().UnixNano() / 1e6
 	data, err := proto.Marshal(snap)
 	if err != nil {
@@ -528,5 +533,17 @@ func SaveToFile(snap *snapshotpb.Snapshot) {
 	}
 	snapshot.BackUp(1, data)
 	now6 := time.Now().UnixNano() / 1e6
-	fmt.Println("save to file:", now6-now5)
+	fmt.Println("proto save to file:", now6-now5)
+}
+
+func JsonSaveToFile(snap *snapshotpb.Snapshot) {
+	now5 := time.Now().UnixNano() / 1e6
+	data, err := json.Marshal(snap)
+	if err != nil {
+		panic(err)
+		return
+	}
+	snapshot.BackUp(2, data)
+	now6 := time.Now().UnixNano() / 1e6
+	fmt.Println("json save to file:", now6-now5)
 }
