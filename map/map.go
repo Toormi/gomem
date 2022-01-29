@@ -471,7 +471,8 @@ func (m *Memory) Snapshot() *snapshotpb.Snapshot {
 	return snap
 }
 
-func TestMap() {
+func TestMap(n int) {
+	num = n
 	db := NewMemory()
 	//var clientIDs []string
 	//clientID := uuid.New().String()

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
+	"gomem/gccompare"
 	_map "gomem/map"
 	"os"
 	"runtime/pprof"
@@ -18,7 +21,34 @@ func main() {
 	//gobuntdb.TestBuntDb()
 	//gomem.TestMemDb()
 	//memory.TestMemory()
-
-	_map.TestMap()
-	//gccompare.GcCompare()
+	gomem := cli.NewApp()
+	gomem.Commands = cli.Commands{
+		{
+			Name:  "testmap",
+			Usage: "./gomem testmap",
+			Action: func(c *cli.Context) error {
+				n := c.Int("n")
+				_map.TestMap(n)
+				return nil
+			},
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "num,n",
+					Value: 50000,
+					Usage: "num",
+				},
+			},
+		},
+		{
+			Name:  "gccompare",
+			Usage: "./gomem gccompare",
+			Action: func(c *cli.Context) error {
+				gccompare.GcCompare()
+				return nil
+			},
+		},
+	}
+	if err = gomem.Run(os.Args); err != nil {
+		logrus.Fatal(err)
+	}
 }

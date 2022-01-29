@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"sync"
 )
 
 func main() {
@@ -43,6 +44,49 @@ func main() {
 	a = nil
 	runtime.GC()
 	fmt.Printf("After Map Set nil %d\n", len(a))
+	printMemStats("After Map Set nil")
+
+	testSyncMap()
+}
+
+func testSyncMap() {
+	v := struct{}{}
+
+	a := sync.Map{}
+
+	for i := 0; i < 10000; i++ {
+		a.Store(i, v)
+	}
+
+	runtime.GC()
+	//fmt.Printf("After Map Add 100000 %d\n", a.Rangef)
+	printMemStats("After Map Add 100000")
+
+	for i := 0; i < 10000; i++ {
+		a.Delete(i)
+	}
+
+	runtime.GC()
+	//fmt.Printf("After Map Delete 10000 len%d\n", len(a))
+	printMemStats("After Map Delete 10000")
+	//if len(a) <= 0 {
+	//	a = make(map[int]struct{})
+	//	runtime.GC()
+	//	fmt.Printf("After New Map len %d\n", len(a))
+	//	printMemStats("After New Map")
+	//}
+
+	for i := 0; i < 10000-1; i++ {
+		a.Store(i, v)
+	}
+
+	runtime.GC()
+	//fmt.Printf("After Map Add 9999 again %d\n", len(a))
+	printMemStats("After Map Add 9999 again")
+
+	a = sync.Map{}
+	runtime.GC()
+	//fmt.Printf("After Map Set nil %d\n", len(a))
 	printMemStats("After Map Set nil")
 }
 
