@@ -484,16 +484,16 @@ func TestMap(n int) {
 	snap := db.Snapshot()
 	now4 := time.Now().UnixNano() / 1e6
 	fmt.Println("deep copy snapshot ", now4-now3)
-	fmt.Println("close order len", len(snap.Orders))
+	fmt.Println("snap order len", len(snap.Orders))
 	//fmt.Println("opening order len", len(snap.OpeningOrders))
 
-	for i := 0; i < 5; i++ {
-		ProtoSaveToFile(snap)
-	}
+	//for i := 0; i < 5; i++ {
+	ProtoSaveToFile(snap)
+	//}
 
-	for i := 0; i < 5; i++ {
-		JsonSaveToFile(snap)
-	}
+	//for i := 0; i < 5; i++ {
+	//	JsonSaveToFile(snap)
+	//}
 }
 
 func Insert(db *Memory) {
