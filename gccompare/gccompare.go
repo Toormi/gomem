@@ -46,12 +46,13 @@ func gcPause() time.Duration {
 	return pause
 }
 
-const (
+var (
 	entries = 20000000
 	repeat  = 50
 )
 
-func GcCompare() {
+func GcCompare(entry int) {
+	entries = entry
 	debug.SetGCPercent(10)
 	fmt.Println("Number of entries: ", entries)
 	fmt.Println("Number of repeats: ", repeat)

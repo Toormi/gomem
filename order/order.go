@@ -396,3 +396,7 @@ func NewOrder(id, customerID uint64, price, amount string, now time.Time, market
 func NewPbOrder(id, customerID uint64, price, amount string, now time.Time, marketUUID string) *orderpb.Order {
 	return &orderpb.Order{Id: id, CustomerId: customerID, MarketUuid: marketUUID, Price: price, Amount: amount, Side: orderpb.Order_Side(id % 2), State: orderpb.Order_State(StatePending), Type: orderpb.Order_Type(TypeLimit), Ioc: false, FilledAmount: "0", AvgDealPrice: "0", InsertedAt: timestamppb.New(now), UpdatedAt: timestamppb.New(now)}
 }
+
+func NewPbOrderWithClientID(id, customerID uint64, price, amount string, now time.Time, marketUUID, clientID string) *orderpb.Order {
+	return &orderpb.Order{Id: id, CustomerId: customerID, MarketUuid: marketUUID, Price: price, Amount: amount, Side: orderpb.Order_Side(id % 2), State: orderpb.Order_State(StatePending), Type: orderpb.Order_Type(TypeLimit), Ioc: false, FilledAmount: "0", AvgDealPrice: "0", InsertedAt: timestamppb.New(now), UpdatedAt: timestamppb.New(now), ClientId: clientID}
+}

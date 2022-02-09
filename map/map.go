@@ -133,8 +133,8 @@ func NewMemory() *Memory {
 	return &Memory{
 		OpeningOrders: make(map[uint64]*MarketOrderMemory),
 		CloseOrders:   make(map[uint64]*MarketOrderMemory),
-		OrderIDMap:    make(map[uint64]*order.Order),
-		ClientIDMap:   make(map[string]*order.Order),
+		OrderIDMap:    make(map[uint64]*order.Order, num),
+		ClientIDMap:   make(map[string]*order.Order, num),
 	}
 }
 
@@ -448,6 +448,7 @@ func (m *Memory) Snapshot() *snapshotpb.Snapshot {
 	for _, o := range m.OrderIDMap {
 		snap.Orders = append(snap.Orders, o)
 	}
+	fmt.Println("client id map len:", len(m.ClientIDMap))
 	m.mtx.Unlock()
 	now2 := time.Now().UnixNano() / 1e6
 	fmt.Println("close order copy ", now2-now)
@@ -472,12 +473,15 @@ func (m *Memory) Snapshot() *snapshotpb.Snapshot {
 	return snap
 }
 
-func TestMap(n int) {
+func TestMap(n, m int) {
 	num = n
 	db := NewMemory()
 	//var clientIDs []string
 	//clientID := uuid.New().String()
 	Insert(db)
+	for i := 0; i <= 6; i++ {
+		Migrate(db, m)
+	}
 	time.Sleep(time.Second * 10)
 	fmt.Println("start to deep copy ")
 	now3 := time.Now().UnixNano() / 1e6
@@ -508,6 +512,7 @@ func Insert(db *Memory) {
 		ord := order2.NewPbOrder(uint64(i), cids[m], "2", "2", time.Now(), marketUUIDs[n])
 		db.SetCloseOrder(ord)
 		db.SetOrderMap(ord, clientID)
+		//db.SetOrderMap(ord, "")
 	}
 	a := num + 50000
 	for i := num + 1; i <= a; i++ {
@@ -518,6 +523,7 @@ func Insert(db *Memory) {
 		ord := order2.NewPbOrder(uint64(i), cids[m], "2", "2", time.Now(), marketUUIDs[n])
 		db.SetOpeningOrder(ord)
 		db.SetOrderMap(ord, clientID)
+		//db.SetOrderMap(ord, "")
 	}
 
 	now2 := time.Now().UnixNano() / 1e6
@@ -546,4 +552,36 @@ func JsonSaveToFile(snap *snapshotpb.Snapshot) {
 	snapshot.BackUp(2, data)
 	now6 := time.Now().UnixNano() / 1e6
 	fmt.Println("json save to file:", now6-now5)
+}
+
+func Migrate(db *Memory, count int) {
+	var pborders []*order.Order
+	db2 := NewMemory()
+	for i := num + 100000; i < num+100000+count; i++ {
+		m := rand.Int63n(int64(customerNum))
+		n := rand.Int63n(int64(marketNum))
+		clientID := uuid.New().String()
+		ord := order2.NewPbOrderWithClientID(uint64(i), cids[m], "2", "2", time.Now(), marketUUIDs[n], clientID)
+		pborders = append(pborders, ord)
+		db2.SetCloseOrder(ord)
+		db2.SetOrderMap(ord, clientID)
+	}
+
+	now := time.Now().UnixNano() / 1e6
+	for range db2.OrderIDMap {
+	}
+	now2 := time.Now().UnixNano() / 1e6
+	fmt.Printf("range1 use %v len:%v\n", now2-now, len(db2.OrderIDMap))
+	now3 := time.Now().UnixNano() / 1e6
+	for range db2.OrderIDMap {
+	}
+	now4 := time.Now().UnixNano() / 1e6
+	fmt.Printf("range2 use %v len:%v\n", now4-now3, len(db2.OrderIDMap))
+	now5 := time.Now().UnixNano() / 1e6
+	for i := 0; i < len(pborders); i++ {
+		db.SetCloseOrder(pborders[i])
+		db.SetOrderMap(pborders[i], pborders[i].ClientId)
+	}
+	now6 := time.Now().UnixNano() / 1e6
+	fmt.Printf("migrate use %v len:%v\n", now6-now5, len(db2.OrderIDMap))
 }

@@ -29,7 +29,8 @@ func main() {
 			Usage: "./gomem testmap",
 			Action: func(c *cli.Context) error {
 				n := c.Int("n")
-				_map.TestMap(n)
+				m := c.Int("m")
+				_map.TestMap(n, m)
 				return nil
 			},
 			Flags: []cli.Flag{
@@ -38,14 +39,27 @@ func main() {
 					Value: 50000,
 					Usage: "num",
 				},
+				cli.IntFlag{
+					Name:  "m",
+					Value: 1000,
+					Usage: "m",
+				},
 			},
 		},
 		{
 			Name:  "gccompare",
 			Usage: "./gomem gccompare",
 			Action: func(c *cli.Context) error {
-				gccompare.GcCompare()
+				n := c.Int("entry")
+				gccompare.GcCompare(n)
 				return nil
+			},
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "entry,e",
+					Value: 50000,
+					Usage: "entry",
+				},
 			},
 		},
 	}
