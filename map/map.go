@@ -2,17 +2,43 @@ package _map
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
+	json "github.com/json-iterator/go"
+	"github.com/shopspring/decimal"
 	order2 "gomem/order"
 	"gomem/protopb/order"
+	snapshotpb "gomem/protopb/snapshot"
+	"gomem/snapshot"
+	"math/rand"
 	"sync"
 	"time"
 )
 
+var (
+	cids        []uint64
+	marketUUIDs []string
+	customerNum = 5000
+	marketNum   = 300
+	px          = decimal.NewFromFloat(1)
+)
+
+func init() {
+	for i := 1; i <= customerNum; i++ {
+		cids = append(cids, uint64(i))
+	}
+	fmt.Println("cid", len(cids))
+
+	for i := 1; i <= marketNum; i++ {
+		marketUUIDs = append(marketUUIDs, uuid.New().String())
+	}
+	fmt.Println("market uuid", len(marketUUIDs))
+}
+
 //var num = 50000
 //
-var num = 5000000
+var num = 20000000
 
 // Memory orders map[cid][market_uuid][id]order
 type Memory struct {
@@ -22,9 +48,9 @@ type Memory struct {
 	CloseOrders   map[uint64]*MarketOrderMemory
 	mtx           sync.RWMutex
 	orderIDMtx    sync.RWMutex
-	OrderIDMap    map[uint64]*OrderMap
+	OrderIDMap    map[uint64]*order.Order
 	clientIDMtx   sync.RWMutex
-	ClientIDMap   map[string]*OrderMap
+	ClientIDMap   map[string]*order.Order
 }
 
 type OrderMap struct {
@@ -96,6 +122,10 @@ func (m *OrderMemory) ListOrder() []*order.Order {
 func (m *OrderMemory) DeleteOrder(id uint64) {
 	m.mtx.Lock()
 	delete(m.Orders, id)
+	if len(m.Orders) <= 0 {
+		// 将旧map释放，确保gc能回收
+		m.Orders = make(map[uint64]*order.Order)
+	}
 	m.mtx.Unlock()
 }
 
@@ -103,8 +133,8 @@ func NewMemory() *Memory {
 	return &Memory{
 		OpeningOrders: make(map[uint64]*MarketOrderMemory),
 		CloseOrders:   make(map[uint64]*MarketOrderMemory),
-		OrderIDMap:    make(map[uint64]*OrderMap),
-		ClientIDMap:   make(map[string]*OrderMap),
+		OrderIDMap:    make(map[uint64]*order.Order, num),
+		ClientIDMap:   make(map[string]*order.Order, num),
 	}
 }
 
@@ -159,30 +189,24 @@ func (m *Memory) SetCloseOrder(order *order.Order) {
 }
 
 func (m *Memory) SetOrderMap(order *order.Order, clientID string) {
-	orderMap := &OrderMap{
-		OrderID:    order.Id,
-		ClientID:   clientID,
-		CustomerID: order.CustomerId,
-		MarketUUID: order.MarketUuid,
-	}
 	m.orderIDMtx.Lock()
-	m.OrderIDMap[order.Id] = orderMap
+	m.OrderIDMap[order.Id] = order
 	m.orderIDMtx.Unlock()
 
 	if clientID != "" {
 		m.clientIDMtx.Lock()
-		m.ClientIDMap[clientID] = orderMap
+		m.ClientIDMap[clientID] = order
 		m.clientIDMtx.Unlock()
 	}
 }
 
 func (m *Memory) GetOpeningOrderByID(ID uint64) (*order.Order, error) {
-	orderMap := m.GetOrderIDMap(ID)
-	if orderMap == nil {
+	ord := m.GetOrderIDMap(ID)
+	if ord == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
 
-	return m.GetOpeningByOrderMap(orderMap)
+	return ord, nil
 }
 
 func (m *Memory) GetOpeningOrdersByCidAndMarketUUID(cid uint64, marketUUID string) ([]*order.Order, error) {
@@ -244,30 +268,30 @@ func GetOrders(mo *MarketOrderMemory, marketUUIDs []string) ([]*order.Order, err
 }
 
 func (m *Memory) GetOpeningOrderByClientID(ClientID string) (*order.Order, error) {
-	orderMap := m.GetClientIDMap(ClientID)
-	if orderMap == nil {
+	ord := m.GetClientIDMap(ClientID)
+	if ord == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
 
-	return m.GetOpeningByOrderMap(orderMap)
+	return ord, nil
 }
 
 func (m *Memory) GetCloseOrderByID(ID uint64) (*order.Order, error) {
-	orderMap := m.GetOrderIDMap(ID)
-	if orderMap == nil {
+	ord := m.GetOrderIDMap(ID)
+	if ord == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
 
-	return m.GetCloseByOrderMap(orderMap)
+	return ord, nil
 }
 
 func (m *Memory) GetCloseOrderByClientID(ClientID string) (*order.Order, error) {
-	orderMap := m.GetClientIDMap(ClientID)
-	if orderMap == nil {
+	ord := m.GetClientIDMap(ClientID)
+	if ord == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
 
-	return m.GetCloseByOrderMap(orderMap)
+	return ord, nil
 }
 
 func (m *Memory) GetOpeningByOrderMap(orderMap *OrderMap) (*order.Order, error) {
@@ -312,16 +336,16 @@ func (m *Memory) DeleteOpeningOrderByID(id uint64) error {
 		return gorm.ErrRecordNotFound
 	}
 
-	mo := m.GetOpeningMarketMemory(ordMap.CustomerID)
+	mo := m.GetOpeningMarketMemory(ordMap.CustomerId)
 	if mo == nil {
 		return gorm.ErrRecordNotFound
 	}
 
-	cu := mo.GetOrderMemory(ordMap.MarketUUID)
+	cu := mo.GetOrderMemory(ordMap.MarketUuid)
 	if cu == nil {
 		return gorm.ErrRecordNotFound
 	}
-	cu.DeleteOrder(ordMap.OrderID)
+	cu.DeleteOrder(ordMap.Id)
 	return nil
 }
 
@@ -331,17 +355,17 @@ func (m *Memory) UpdateOpeningOrderByID(id uint64, price string) (*order.Order, 
 		return nil, gorm.ErrRecordNotFound
 	}
 
-	mo := m.GetOpeningMarketMemory(ordMap.CustomerID)
+	mo := m.GetOpeningMarketMemory(ordMap.CustomerId)
 	if mo == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
 
-	cu := mo.GetOrderMemory(ordMap.MarketUUID)
+	cu := mo.GetOrderMemory(ordMap.MarketUuid)
 	if cu == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
 
-	ord := cu.GetOrder(ordMap.OrderID)
+	ord := cu.GetOrder(ordMap.Id)
 	if ord == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
@@ -351,14 +375,14 @@ func (m *Memory) UpdateOpeningOrderByID(id uint64, price string) (*order.Order, 
 	return ord, nil
 }
 
-func (m *Memory) GetOrderIDMap(ID uint64) *OrderMap {
+func (m *Memory) GetOrderIDMap(ID uint64) *order.Order {
 	m.orderIDMtx.RLock()
 	v := m.OrderIDMap[ID]
 	m.orderIDMtx.RUnlock()
 	return v
 }
 
-func (m *Memory) GetClientIDMap(clientID string) *OrderMap {
+func (m *Memory) GetClientIDMap(clientID string) *order.Order {
 	m.clientIDMtx.RLock()
 	v := m.ClientIDMap[clientID]
 	m.clientIDMtx.RUnlock()
@@ -377,15 +401,10 @@ func toMap(uuids []string) map[string]struct{} {
 type Snapshot struct {
 	CloseOrders   []*order.Order
 	OpeningOrders []*order.Order
-	orderMapMtx   sync.Mutex
-	OrderMaps     map[uint64]*OrderMap
 }
 
-func (m *Memory) Snapshot() *Snapshot {
-	snap := &Snapshot{
-		OrderMaps:   make(map[uint64]*OrderMap),
-		CloseOrders: make([]*order.Order, 0, 5000000),
-	}
+func (m *Memory) Snapshot() *snapshotpb.Snapshot {
+	snap := &snapshotpb.Snapshot{}
 
 	//var wg sync.WaitGroup
 	//wg.Add(2)
@@ -425,82 +444,144 @@ func (m *Memory) Snapshot() *Snapshot {
 	//go func() {
 	//	defer wg.Done()
 	now := time.Now().UnixNano() / 1e6
-	for _, om := range m.CloseOrders {
-		for _, co := range om.MarketOrders {
-			for _, o := range co.Orders {
-				//snap.CloseOrders = append(snap.CloseOrders, o)
-				_ = o
-			}
-		}
+	m.mtx.Lock()
+	for _, o := range m.OrderIDMap {
+		snap.Orders = append(snap.Orders, o)
 	}
+	fmt.Println("client id map len:", len(m.ClientIDMap))
+	m.mtx.Unlock()
 	now2 := time.Now().UnixNano() / 1e6
 	fmt.Println("close order copy ", now2-now)
 	//}()
 
 	//go func() {
-	m.orderIDMtx.RLock()
-	for _, ordMap := range m.OrderIDMap {
-		snap.OrderMaps[ordMap.OrderID] = ordMap
-	}
-	m.orderIDMtx.RUnlock()
+	//m.orderIDMtx.RLock()
+	//for _, ordMap := range m.OrderIDMap {
+	//	snap.OrderMaps[ordMap.OrderID] = ordMap
+	//}
+	//m.orderIDMtx.RUnlock()
 
 	//go func() {
-	m.clientIDMtx.RLock()
-	for _, ordMap := range m.ClientIDMap {
-		snap.OrderMaps[ordMap.OrderID] = ordMap
-	}
-	m.clientIDMtx.RUnlock()
+	//m.clientIDMtx.RLock()
+	//for _, ordMap := range m.ClientIDMap {
+	//	snap.OrderMaps[ordMap.OrderID] = ordMap
+	//}
+	//m.clientIDMtx.RUnlock()
 
 	//wg.Wait()
 
 	return snap
 }
 
-func TestMap() {
+func TestMap(n, m int) {
+	num = n
 	db := NewMemory()
 	//var clientIDs []string
 	//clientID := uuid.New().String()
 	Insert(db)
-	//time.Sleep(time.Second * 10)
+	for i := 0; i <= 6; i++ {
+		Migrate(db, m)
+	}
+	time.Sleep(time.Second * 10)
 	fmt.Println("start to deep copy ")
 	now3 := time.Now().UnixNano() / 1e6
 	snap := db.Snapshot()
 	now4 := time.Now().UnixNano() / 1e6
 	fmt.Println("deep copy snapshot ", now4-now3)
-	fmt.Println("close order len", len(snap.CloseOrders))
-	fmt.Println("opening order len", len(snap.OpeningOrders))
-	fmt.Println("map len", len(snap.OrderMaps))
+	fmt.Println("snap order len", len(snap.Orders))
+	//fmt.Println("opening order len", len(snap.OpeningOrders))
 
-	//now5 := time.Now().UnixNano() / 1e6
-	//data, err := json.Marshal(snap)
-	//if err != nil {
-	//	panic(err)
-	//	return
+	//for i := 0; i < 5; i++ {
+	ProtoSaveToFile(snap)
 	//}
-	//snapshot.BackUp(1, data)
-	//now6 := time.Now().UnixNano() / 1e6
-	//fmt.Println("save to file:", now6-now5)
+
+	//for i := 0; i < 5; i++ {
+	//	JsonSaveToFile(snap)
+	//}
 }
 
 func Insert(db *Memory) {
 	fmt.Println("start insert")
+	rand.Seed(time.Now().UnixNano())
 	now := time.Now().UnixNano() / 1e6
 	for i := 1; i <= num; i++ {
+		m := rand.Int63n(int64(customerNum))
+		n := rand.Int63n(int64(marketNum))
 		clientID := uuid.New().String()
 		//clientIDs = append(clientIDs, clientID)
-		ord := order2.NewOrder(uint64(i), uint64(i), "2", "2", time.Now(), clientID)
+		ord := order2.NewPbOrder(uint64(i), cids[m], "2", "2", time.Now(), marketUUIDs[n])
 		db.SetCloseOrder(ord)
 		db.SetOrderMap(ord, clientID)
+		//db.SetOrderMap(ord, "")
 	}
 	a := num + 50000
 	for i := num + 1; i <= a; i++ {
+		m := rand.Int63n(int64(customerNum))
+		n := rand.Int63n(int64(marketNum))
 		clientID := uuid.New().String()
 		//clientIDs = append(clientIDs, clientID)
-		ord := order2.NewOrder(uint64(i), uint64(i), "2", "2", time.Now(), clientID)
+		ord := order2.NewPbOrder(uint64(i), cids[m], "2", "2", time.Now(), marketUUIDs[n])
 		db.SetOpeningOrder(ord)
 		db.SetOrderMap(ord, clientID)
+		//db.SetOrderMap(ord, "")
 	}
 
 	now2 := time.Now().UnixNano() / 1e6
 	fmt.Println("insert into eslap ", now2-now)
+}
+
+func ProtoSaveToFile(snap *snapshotpb.Snapshot) {
+	now5 := time.Now().UnixNano() / 1e6
+	data, err := proto.Marshal(snap)
+	if err != nil {
+		panic(err)
+		return
+	}
+	snapshot.BackUp(1, data)
+	now6 := time.Now().UnixNano() / 1e6
+	fmt.Println("proto save to file:", now6-now5)
+}
+
+func JsonSaveToFile(snap *snapshotpb.Snapshot) {
+	now5 := time.Now().UnixNano() / 1e6
+	data, err := json.Marshal(snap)
+	if err != nil {
+		panic(err)
+		return
+	}
+	snapshot.BackUp(2, data)
+	now6 := time.Now().UnixNano() / 1e6
+	fmt.Println("json save to file:", now6-now5)
+}
+
+func Migrate(db *Memory, count int) {
+	var pborders []*order.Order
+	db2 := NewMemory()
+	for i := num + 100000; i < num+100000+count; i++ {
+		m := rand.Int63n(int64(customerNum))
+		n := rand.Int63n(int64(marketNum))
+		clientID := uuid.New().String()
+		ord := order2.NewPbOrderWithClientID(uint64(i), cids[m], "2", "2", time.Now(), marketUUIDs[n], clientID)
+		pborders = append(pborders, ord)
+		db2.SetCloseOrder(ord)
+		db2.SetOrderMap(ord, clientID)
+	}
+
+	now := time.Now().UnixNano() / 1e6
+	for range db2.OrderIDMap {
+	}
+	now2 := time.Now().UnixNano() / 1e6
+	fmt.Printf("range1 use %v len:%v\n", now2-now, len(db2.OrderIDMap))
+	now3 := time.Now().UnixNano() / 1e6
+	for range db2.OrderIDMap {
+	}
+	now4 := time.Now().UnixNano() / 1e6
+	fmt.Printf("range2 use %v len:%v\n", now4-now3, len(db2.OrderIDMap))
+	now5 := time.Now().UnixNano() / 1e6
+	for i := 0; i < len(pborders); i++ {
+		db.SetCloseOrder(pborders[i])
+		db.SetOrderMap(pborders[i], pborders[i].ClientId)
+	}
+	now6 := time.Now().UnixNano() / 1e6
+	fmt.Printf("migrate use %v len:%v\n", now6-now5, len(db2.OrderIDMap))
 }

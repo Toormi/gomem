@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	cids  = []uint64{1100752, 1100750, 1100749, 1100758}
+	//cids  = []uint64{1100752, 1100750, 1100749, 1100758}
 	uuids = []string{"ffd79462-48b6-43f7-8cb0-12bdeaf8915e", "ff447f95-b7cc-4523-ac5b-10da6cf2253c", "feefa85f-99d4-4eda-97c7-8de4c0c45931", "fdf18ca8-1e30-4191-8e57-d3f7c0b92c82", "fd7d29b6-10dd-4ade-925c-3e1f61ef9a3a"}
 )
 
